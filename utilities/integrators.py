@@ -7,7 +7,7 @@ from utilities.gauss_quad import gauss_kronrod,gauss_quad
 from utilities.interpolators import lagrange_interp
 
 """
-Author: Aaron Kaplan, kaplan@temple.edu
+Author: Aaron Kaplan, adkaplan@lbl.gov
 """
 
 pi = np.pi

@@ -15,7 +15,7 @@ def freq_mom_single_rs(q_min, q_max, Nq, rs, MOM, fxc_param, fxc_opts= {}):
     sfl = f'{sdir}moment_{MOM}.csv'
     system(f'mkdir -p {sdir}')
 
-    _heg = HEG(rs)
+    _heg = HEG(rs,d=3)
     ql = _heg.kF*np.linspace(q_min,q_max,Nq)
     moment = np.zeros(Nq)
     for iq, aq in enumerate(ql):
@@ -33,12 +33,10 @@ def freq_mom_single_q_single_rs(q, rs, MOM, fxc_param,
     fxc_opts = {}, tol = 5.e-7,
     alpha_m4 = .5, zeta_m4 = 0.5,
 ):
-    _HEG = HEG(rs)
-    igrd = lambda w: w**MOM * spectral_HEG(q,w + 1.e-12j*_HEG.wp0, rs, fxc_param, fxc_opts = fxc_opts)
+    _HEG = HEG(rs,d=3)
+    igrd = lambda w: w**MOM * spectral_HEG(q,w + 1.e-16j*_HEG.wp0, rs, fxc_param, fxc_opts = fxc_opts)
 
-    out_d = {}
     wl, dw = m4_grid(maxN, zeta=zeta_m4*_HEG.wp0, alpha = alpha_m4*_HEG.wp0)
-
     return np.sum(dw*igrd(wl))
 
 
@@ -46,29 +44,30 @@ if __name__ == "__main__":
 
     import matplotlib.pyplot as plt
 
-    rs = 69
+    rs = 4
+    fxc = "RPA"
     qls = []
     moms = []
 
-    _HEG_ = HEG(rs)
+    _HEG_ = HEG(rs,d=3)
     for iMOM in range(3):
-        ql, tspec = freq_mom_single_rs(0.01, 4., 400, rs, iMOM, 'MCP07')
+        ql, tspec = freq_mom_single_rs(0.01, 4., 400, rs, iMOM, fxc)
         moms.append(tspec)
 
     avg_w = moms[1]/(moms[0]*_HEG_.wp0)
     dev_w = np.maximum(0., moms[2]/(moms[0]*_HEG_.wp0**2) - avg_w**2)**(0.5)
-    plt.plot(ql,avg_w)
-    plt.plot(ql,dev_w)
+    plt.plot(ql,avg_w,color="darkblue")
+    plt.plot(ql,dev_w,color="darkorange")
 
-    plt.plot(ql,(ql**2/2. + _HEG_.kF*ql)*_HEG_.kF**2/_HEG_.wp0)
+    plt.plot(ql,(ql**2/2. + _HEG_.kF*ql)*_HEG_.kF**2/_HEG_.wp0,color="green")
 
-    if path.isfile(f'.for_freq_mom_test/MCP07_Sq_rs_{rs}_original.csv'):
-        q, og_s = np.transpose(np.genfromtxt(f'.for_freq_mom_test/MCP07_Sq_rs_{rs}_original.csv',delimiter=',',skip_header=1))
-        _, m1 = np.transpose(np.genfromtxt(f'.for_freq_mom_test/MCP07_moment_1.0_rs_{rs}_original.csv',delimiter=',',skip_header=1))
-        _, m2 = np.transpose(np.genfromtxt(f'.for_freq_mom_test/MCP07_moment_2.0_rs_{rs}_original.csv',delimiter=',',skip_header=1))
+    if path.isfile(f'./freq_moment_test/{fxc}_Sq_rs_{rs}_original.csv'):
+        q, og_s = np.transpose(np.genfromtxt(f'./freq_moment_test/{fxc}_Sq_rs_{rs}_original.csv',delimiter=',',skip_header=1))
+        _, m1 = np.transpose(np.genfromtxt(f'./freq_moment_test/{fxc}_moment_1.0_rs_{rs}_original.csv',delimiter=',',skip_header=1))
+        _, m2 = np.transpose(np.genfromtxt(f'./freq_moment_test/{fxc}_moment_2.0_rs_{rs}_original.csv',delimiter=',',skip_header=1))
 
-        plt.plot(q,m1/og_s,color='blue',linestyle=':')
-        plt.plot(q,np.maximum(0., m2/og_s  - (m1/og_s)**2)**(0.5),color='orange',linestyle=':')
+        plt.plot(q,m1/og_s,color='cyan',linestyle=':')
+        plt.plot(q,np.maximum(0., m2/og_s  - (m1/og_s)**2)**(0.5),color='yellow',linestyle=':')
 
     plt.ylim(0.,5.)
 

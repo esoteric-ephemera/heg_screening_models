@@ -4,3 +4,5 @@
 TCTC_low_q.py
 DFT/fxc_DLDA.py
 grids
+test_2D.py
+freq_moment_test

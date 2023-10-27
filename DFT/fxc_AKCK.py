@@ -30,7 +30,3 @@ def simple_LFF(q,dv,c):
 def fxc_AKCK(q,dv):
     cps = [-0.00451760, 0.0155766, 0.422624, 3.516054, 1.015830]
     return -4.*pi*simple_LFF(q,dv,cps)/q**2
-
-if __name__ == "__main__":
-
-    g_plus_new(1.,1.)

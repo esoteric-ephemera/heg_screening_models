@@ -9,17 +9,29 @@ C_GKI = 23.*pi/15.
 
 class HEG:
 
-    def __init__(self, rs: float):
+    def __init__(self, rs: float, d : int = 3):
         self.rs = rs
         self.rsh = rs**(0.5)
-        self.n = 3./(4.*pi*rs**3)
-        self.kF = c_kF_rs/rs
+
+        if d == 2:
+            self._HEG_2D()
+        elif d == 3:
+            self._HEG_3D()
+
+    def _HEG_3D(self):
+        self.n = 3./(4.*pi*self.rs**3)
+        self.kF = c_kF_rs/self.rs
         self.ks = (4.*self.kF/pi)**(0.5)
         self.epsF = self.kF**2/2.
         self.wp0 = (4.*pi*self.n)**(0.5)
 
-        return
-    
+    def _HEG_2D(self):
+        self.n = 1./(pi*self.rs**2)
+        self.kF = 2**(0.5)/self.rs
+        self.ks = 2.
+        self.epsF = self.kF**2/2.
+        self.wp0 = 0.
+
     def as_dict(self):
         return {'rs': self.rs, 'rsh': self.rsh, 'n': self.n, 'kF': self.kF, 
             'epsF': self.epsF, 'omega_p(0)': self.wp0

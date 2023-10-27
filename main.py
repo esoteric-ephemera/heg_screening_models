@@ -4,11 +4,12 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 from os import system, path
 
+from constants import pi
 from DFT.chi import WCOUL, VCOUL, inverse_DF
 from DFT.common import HEG
 from frequency_moments import freq_mom_single_rs, odir
-from plasmon_dispersion import plas_dir, plas_dir_for_taylor, get_plasmon_dispersion, find_flat_plasmon
-from real_space_transform import FT_3D_SPH
+from pseudo_plasmon_dispersion import plas_dir, plas_dir_for_taylor, get_plasmon_dispersion, find_flat_plasmon
+from real_space_transform import FT_SPH
 
 font = {'family': 'serif', 'serif': ['Palatino']}
 plt.rc('font', **font)
@@ -21,10 +22,12 @@ if not path.isdir(sdir):
 atol = 1.e-6
 
 all_fxc = ['RPA','ALDA','CDOP','Static MCP07', 'AKCK', 'GKI', 'QV', 'QV spline', 'MCP07', 'rMCP07']
+all_fxc_2D = ["RPA","ALDA","DPGT"]
 
 style_d = {
     'RPA': ('k','-'),
     'ALDA': ('k', ':'),
+    "DPGT": ("goldenrod","-"),
     'CDOP': ('darkblue','-'),
     'Static MCP07': ('goldenrod','--'),
     'AKCK': ('dodgerblue','-.'),
@@ -50,19 +53,19 @@ def W_plots(rs, fxc_l,
     x_l = np.linspace(q_min, q_max, Nq)
     q_l = DV.kF*x_l
     
-    wscl = 4*np.pi/DV.ks**2
+    wscl = 4*pi/DV.ks**2
 
     fig, ax = plt.subplots(2,1,figsize=(4,6))
 
     DF_l = ['TCTC','TCTE']
 
     for iax in range(2):
-        ax[iax].plot(x_l,-VCOUL(q_l)/wscl, color = 'darkorange', linestyle = '-', label = 'Bare Coulomb')
+        ax[iax].plot(x_l,-VCOUL(q_l, d = 3)/wscl, color = 'darkorange', linestyle = '-', label = 'Bare Coulomb')
 
     for fxc in fxc_l:
 
         for iax, wvar in enumerate(DF_l):
-            ax[iax].plot(x_l, -WCOUL(q_l, 1.e-12j, rs, fxc, wvar).real/wscl, 
+            ax[iax].plot(x_l, -WCOUL(q_l, 1.e-12j, rs, fxc, wvar, d= 3).real/wscl, 
                 color=style_d[fxc][0], linestyle=style_d[fxc][1], 
                 label=fxc
             )
@@ -423,12 +426,18 @@ def TCTE_plasmon_pair_plots(fxc_l,
 
 
 def W_plots_real_space(rs, fxc_l, 
-    fxc_opts = {}, r_min = 0.1, r_max = 5., Nr = 500, Nproc = 1
+    fxc_opts = {}, r_min = 0.1, r_max = 5., Nr = 500, Nproc = 1,
+    d = 3
 ):
 
     fig, ax = plt.subplots(2,1,figsize=(5,6))
 
-    _heg = HEG(rs)
+    base_dir = "./real_space"
+    if d == 2:
+        base_dir += "_2D"
+    base_dir += "/"
+
+    _heg = HEG(rs,d=d)
     DF_l = ['TCTC','TCTE']
 
     r_l = np.linspace(r_min, r_max, Nr)
@@ -440,16 +449,21 @@ def W_plots_real_space(rs, fxc_l,
         for iax, wvar in enumerate(DF_l):
 
             if fxc == 'BARE':
-                rsfl = './real_space/BARE.csv'
+                rsfl = f"{base_dir}/BARE.csv"
             else:
-                rsfl = f"./real_space/{fxc.replace(' ','-')}/rs_{rs}/{fxc}_{wvar}_rs-{rs}.csv"
+                rsfl = f"{base_dir}/{fxc.replace(' ','-')}/rs_{rs}/{fxc}_{wvar}_rs-{rs}.csv"
 
             if path.isfile(rsfl):
                 r_l, wcr = np.transpose(np.genfromtxt(rsfl,delimiter=',',skip_header=1))
             else:
-                r_l, wcr = FT_3D_SPH().eval_WCOUL_r(rs, fxc, wvar, 
-                    fxc_opts = fxc_opts,
-                    r_min = r_min, 
+                r_l, wcr = FT_SPH(
+                    rs, 
+                    fxc, 
+                    wvar, 
+                    d = d,
+                    fxc_opts = fxc_opts
+                ).eval_WCOUL_r(
+                    r_min = r_min,
                     r_max = r_max, 
                     Nr = Nr, 
                     Nproc = Nproc
@@ -460,7 +474,7 @@ def W_plots_real_space(rs, fxc_l,
                 label=fxc
             )
     
-    if rs > 10.:
+    if (rs > 10. and d == 3) or (rs > 1. and d == 2):
         ubd = 1.6
     else:
         ubd = 0.5
@@ -492,7 +506,11 @@ def W_plots_real_space(rs, fxc_l,
     
     #plt.show() ; exit()
 
-    plt.savefig(f'{sdir}/WCOUL_real_space-rs_{rs}.pdf',dpi=600,bbox_inches='tight')
+    if d == 3:
+        fname = f'{sdir}/WCOUL_real_space-rs_{rs}.pdf'
+    elif d == 2:
+        fname = f'{sdir}/WCOUL_real_space-rs_{rs}_2D.pdf'
+    plt.savefig(fname,dpi=600,bbox_inches='tight')
     
     plt.cla()
     plt.clf()
@@ -558,29 +576,37 @@ def eps_loc_plots(q0,
 
     return
 
-def statistical_plasmon(rs, fxc_param, fxc_opts = {}, q_min = 0.05, q_max = 4., Nq = 500):
+def statistical_plasmon(rs, 
+    fxc_param_list = ["MCP07","AKCK"], 
+    fxc_opts = {}, 
+    q_min = 0.05, q_max = 4., Nq = 500
+):
 
     _HEG_ = HEG(rs)
-    moms = []
-    for imom in range(3):
-
-        sfl = f'{odir}/{fxc_param}/rs_{rs}/moment_{imom}.csv'
-        if path.isfile(sfl):
-            ql, tspec = np.transpose(np.genfromtxt(sfl,delimiter=',',skip_header=1))
-        else:
-            ql, tspec = freq_mom_single_rs(q_min, q_max, Nq, rs, imom, fxc_param, fxc_opts = fxc_opts)
-        moms.append(tspec)
-    
-    avg_w = moms[1]/(moms[0]*_HEG_.wp0)
-    dev_w = np.maximum(0., moms[2]/(moms[0]*_HEG_.wp0**2) - avg_w**2)**(0.5)
 
     fig, ax = plt.subplots(figsize = (6,4))
 
-    ax.plot(ql,avg_w,color='darkblue',label=fxc_param)
-    ax.fill_between(ql, avg_w-dev_w, avg_w+dev_w,color='tab:blue', alpha = 0.5)
+    colors = [("darkblue","tab:blue"),("darkorange","tab:orange")]
+    for ifxc, fxc_param in enumerate(fxc_param_list):
+        moms = []
+        for imom in range(3):
 
-    cutoff = (ql**2/2. + _HEG_.kF*ql)*_HEG_.kF**2/_HEG_.wp0
-    ax.plot(ql,cutoff, color='darkorange', label='$q^2/2 + k_\\mathrm{F} q$')
+            sfl = f'{odir}/{fxc_param}/rs_{rs}/moment_{imom}.csv'
+            #if path.isfile(sfl):
+            #    ql, tspec = np.transpose(np.genfromtxt(sfl,delimiter=',',skip_header=1))
+            #else:
+            ql, tspec = freq_mom_single_rs(q_min, q_max, Nq, rs, imom, fxc_param, fxc_opts = fxc_opts)
+            moms.append(tspec)
+        
+        avg_w = moms[1]/(moms[0]*_HEG_.wp0)
+        dev_w = np.maximum(0., moms[2]/(moms[0]*_HEG_.wp0**2) - avg_w**2)**(0.5)
+
+        ax.plot(ql,avg_w,color=colors[ifxc][0],label=fxc_param)
+        ax.fill_between(ql, avg_w-dev_w, avg_w+dev_w,color=colors[ifxc][1], alpha = 0.5)
+
+    cutoff = [(ql**2/2. + (-1)**i * ql)*_HEG_.kF**2/_HEG_.wp0 for i in range(2)]
+    ax.plot(ql,cutoff[0], color='tab:green', label='$q^2/2 + k_\\mathrm{F} q$')
+    ax.plot(ql,cutoff[1], color='tab:green', linestyle="--", label='$q^2/2 - k_\\mathrm{F} q$')
     
     ax.set_xlim(q_min,q_max)
     ax.set_xlabel('$q/k_\\mathrm{F}$',fontsize=12)
@@ -606,7 +632,11 @@ def statistical_plasmon(rs, fxc_param, fxc_opts = {}, q_min = 0.05, q_max = 4., 
     ax.yaxis.set_major_locator(MultipleLocator(dtck))
 
     #plt.show() ; exit()
-    plt.savefig(f'{sdir}stat_plas-fxc_{fxc_param}-rs_{rs}.pdf',dpi=600,bbox_inches='tight')
+    pfname = f"{sdir}stat_plas-fxc"
+    for fxc_param in fxc_param_list:
+        pfname += f"_{fxc_param}"
+    pfname += f"-rs_{rs}.pdf"
+    plt.savefig(pfname,dpi=600,bbox_inches='tight')
 
     plt.cla()
     plt.clf()
@@ -614,11 +644,115 @@ def statistical_plasmon(rs, fxc_param, fxc_opts = {}, q_min = 0.05, q_max = 4., 
 
     return
 
+def plot_DF_2D(rs, fxc_l):
+
+    fig, ax = plt.subplots(2,1,figsize=(4,6))
+
+    heg = HEG(rs,d=2)
+    xl = np.linspace(1.e-2,5.,5000)
+    ql = xl*heg.kF
+    for iDF, DF in enumerate(["TCTC","TCTE"]):
+        for fxc in fxc_l:
+            IDF = inverse_DF(ql, 0., rs, fxc, DF, fxc_opts = {}, d = 2)
+            ax[iDF].plot(
+                xl, IDF.real,
+                color = style_d[fxc][0],
+                linestyle=style_d[fxc][1],
+                label = fxc
+            )
+        ax[iDF].set_ylabel(
+            "$\\varepsilon^{-1}_\\mathrm{"+DF+"}(q)$",
+            fontsize=12
+        )
+        ax[iDF].set_xlim(xl.min(),xl.max())
+        ax[iDF].annotate("(a)" if iDF == 0 else "(b)",
+            (.02,.85),
+            xycoords = "axes fraction", 
+            annotation_clip = False,
+            fontsize=20
+        )
+        ax[iDF].hlines(0.,*ax[iDF].get_xlim(),color="k",linewidth=1)
+        #ax[iDF].set_ylim(-0.75, 1.25)
+    ax[1].set_xlabel("$q/k_\\mathrm{F}$",fontsize=12)
+    
+    ax[1].legend(title = '$r_\\mathrm{s}='+f'{rs}$',title_fontsize=10,fontsize=10, 
+        ncol = 1, frameon= False,
+        loc = "lower right"#, bbox_to_anchor = (0.0,1.01)
+    )
+
+    #plt.show(); return
+    plt.savefig(f"{sdir}/2D_IDF_rs_{rs}.pdf",dpi=600,bbox_inches="tight")
+    plt.cla()
+    plt.clf()
+    plt.close()
+
+def plot_W_2D(rs, fxc_l):
+
+    fig, ax = plt.subplots(2,1,figsize=(4,6))
+
+    heg = HEG(rs,d=2)
+    xl = np.linspace(1.e-2,5.,5000)
+    ql = xl*heg.kF
+    for iDF, DF in enumerate(["TCTC","TCTE"]):
+        for fxc in fxc_l:
+            W = WCOUL(ql, 0., rs, fxc, DF, fxc_opts = {}, d = 2)
+            ax[iDF].plot(
+                xl, W.real/pi,
+                color = style_d[fxc][0],
+                linestyle=style_d[fxc][1],
+                label = fxc
+            )
+        ax[iDF].set_ylabel(
+            "$-W_\\mathrm{"+DF+"}(q)/\\pi$",
+            fontsize=12
+        )
+        ax[iDF].set_xlim(xl.min(),xl.max())
+        ax[iDF].annotate("(a)" if iDF == 0 else "(b)",
+            (-0.2,.9),
+            xycoords = "axes fraction", 
+            annotation_clip = False,
+            fontsize=20
+        )
+        ax[iDF].hlines(0.,*ax[iDF].get_xlim(),color="k",linewidth=1)
+        #ax[iDF].set_ylim(-0.75, 1.25)
+    ax[1].set_xlabel("$q/k_\\mathrm{F}$",fontsize=12)
+    
+    if rs < 2:
+        legend_axis = 1
+        legend_loc = "upper right"
+    else:
+        legend_axis = 0
+        legend_loc = "lower right"
+
+    ax[legend_axis].legend(
+        title = '$r_\\mathrm{s}='+f'{rs}$',
+        title_fontsize=10,
+        fontsize=10, 
+        ncol = 1, 
+        frameon= False,
+        loc = legend_loc
+    )
+
+    #plt.show(); return
+    plt.savefig(f"{sdir}/2D_W_rs_{rs}.pdf",dpi=600,bbox_inches="tight")
+    plt.cla()
+    plt.clf()
+    plt.close()
 
 if __name__ == "__main__":
 
+    for rs in [1., 4.]:
+        #plot_DF_2D(rs,all_fxc_2D)
+        #plot_W_2D(rs,all_fxc_2D)
+        W_plots_real_space(rs, all_fxc_2D, 
+            fxc_opts = {}, r_min = 0.1, r_max = 5., Nr = 5000, Nproc = 6,
+            d = 2
+        )
+    #exit()
+
     for rs in [4,22,69]:
-        statistical_plasmon(rs, 'AKCK')
+        statistical_plasmon(rs)
+        statistical_plasmon(rs,fxc_param_list=["MCP07"])
     exit()
 
     #get_flat_plasmons(['ALDA','CDOP','AKCK','Static MCP07','GKI','MCP07','rMCP07'])
