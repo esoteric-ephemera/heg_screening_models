@@ -71,7 +71,6 @@ def _chi_0_HEG_3D(q, omega, dv):
     fx = 0.5 + 0.0j
     fx += (1.0-zu1**2)/(8.0*z)*np.log((zu1 + 1.0)/(zu1 - 1.0))
     fx += (1.0-zu2**2)/(8.0*z)*np.log((zu2 + 1.0)/(zu2 - 1.0))
-
     return -dv.kF*fx/pi**2
 
 

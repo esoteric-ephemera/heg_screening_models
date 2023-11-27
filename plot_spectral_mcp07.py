@@ -1,6 +1,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from os import path, system
 from scipy.optimize import bisect
 from scipy.interpolate import splrep, splev
 
@@ -14,6 +15,10 @@ from main import sdir
 These are pretty bespoke functions, intended 
 for a few instructive plots
 """
+
+fwhm_dir = "./FWHM_data/"
+if not path.isdir(fwhm_dir):
+    system(f"mkdir {fwhm_dir}")
 
 def spectral_plot():
 
@@ -115,7 +120,7 @@ def fwhm(
     fig, ax = plt.subplots(figsize=(6,4))
     
 
-    rsl = [ 22., 69.]
+    rsl = [ 22, 69]
     colors = plt.cm.inferno(np.linspace(0,0.8,len(rsl)))
     for irs, rs in enumerate(rsl):
 
@@ -178,7 +183,13 @@ def fwhm(
                 fwhm[iq] = w_hmax[1] - w_hmax[0]
         
         ax.plot(ql/heg.kF,fwhm/heg.wp0,color=colors[irs],label = "$r_\\mathrm{s}=" + f"{rs}$")
-    
+        np.savetxt(
+            f"{fwhm_dir}/FWHM-rs_{rs}-fxc_{fxc}.csv",
+            np.transpose((ql/heg.kF,fwhm/heg.wp0)),
+            delimiter=",",
+            header="q/kF, w_life / wp0"
+        )
+
     ax.legend(title=fxc, title_fontsize=12, fontsize=12, frameon=False)
 
     ax.set_xlabel(r"$q/k_\mathrm{F}$", fontsize=12)

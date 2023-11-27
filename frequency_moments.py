@@ -20,7 +20,7 @@ def freq_mom_single_rs(q_min, q_max, Nq, rs, MOM, fxc_param, fxc_opts= {}):
     moment = np.zeros(Nq)
     for iq, aq in enumerate(ql):
 
-        moment[iq] = freq_mom_single_q_single_rs(aq, rs, MOM, fxc_param, fxc_opts = fxc_opts)#, min_dens = wdens, min_freq_ubd=freq_max)
+        moment[iq] = freq_mom_single_q_single_rs(aq, rs, MOM, fxc_param, fxc_opts = fxc_opts)
 
     np.savetxt(sfl,np.transpose((ql/_heg.kF,moment)),
         delimiter=',',
@@ -30,14 +30,18 @@ def freq_mom_single_rs(q_min, q_max, Nq, rs, MOM, fxc_param, fxc_opts= {}):
     return ql/_heg.kF,moment
 
 def freq_mom_single_q_single_rs(q, rs, MOM, fxc_param, 
-    fxc_opts = {}, tol = 5.e-7,
+    fxc_opts = {}, b1 = 1.e-1, b2 = 1.e-3,
     alpha_m4 = .5, zeta_m4 = 0.5,
 ):
     _HEG = HEG(rs,d=3)
-    igrd = lambda w: w**MOM * spectral_HEG(q,w + 1.e-16j*_HEG.wp0, rs, fxc_param, fxc_opts = fxc_opts)
-
+    def igrd(w,broaden):
+        return w**MOM * spectral_HEG(q,w + 1.j*broaden*_HEG.wp0, rs, fxc_param, fxc_opts = fxc_opts)
     wl, dw = m4_grid(maxN, zeta=zeta_m4*_HEG.wp0, alpha = alpha_m4*_HEG.wp0)
-    return np.sum(dw*igrd(wl))
+
+    i1 = np.sum(dw*igrd(wl,b1))
+    i2 = np.sum(dw*igrd(wl,b2))
+    # extrapolate to zero imaginary frequency
+    return i2 - b2*(i2 - i1)/(b2 - b1)
 
 
 if __name__ == "__main__":
@@ -45,7 +49,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     rs = 4
-    fxc = "RPA"
+    fxc = "MCP07"
     qls = []
     moms = []
 

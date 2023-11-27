@@ -25,7 +25,11 @@ def gauss_quad(lvl,grid_type='legendre',alag=0.0):
         wg = np.pi/lvl*(1.0 - x**2)**(0.5)
         np.savetxt('./grids/'+fname,np.transpose((wg,x)),delimiter=',',fmt='%.16f',header='weight,point')
         return
-     # algorithm from Golub and Welsch, Math. Comp. 23, 221 (1969)
+
+    if path.isfile("./grids/" + fname):
+        return np.transpose(np.genfromtxt("./grids/" + fname,delimiter=",",skip_header=1))
+
+    # algorithm from Golub and Welsch, Math. Comp. 23, 221 (1969)
     def bet(n):# coefficients from NIST's DLMF, sec. 18.9
         if grid_type == 'legendre':
             an = (2*n+1.0)/(n+1.0)

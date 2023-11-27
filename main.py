@@ -741,14 +741,15 @@ def plot_W_2D(rs, fxc_l):
 
 if __name__ == "__main__":
 
+    """
     for rs in [1., 4.]:
-        #plot_DF_2D(rs,all_fxc_2D)
-        #plot_W_2D(rs,all_fxc_2D)
+        plot_DF_2D(rs,all_fxc_2D)
+        plot_W_2D(rs,all_fxc_2D)
         W_plots_real_space(rs, all_fxc_2D, 
             fxc_opts = {}, r_min = 0.1, r_max = 5., Nr = 5000, Nproc = 6,
             d = 2
         )
-    #exit()
+    """
 
     for rs in [4,22,69]:
         statistical_plasmon(rs)
